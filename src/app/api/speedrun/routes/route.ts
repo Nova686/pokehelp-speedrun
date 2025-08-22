@@ -1,32 +1,28 @@
-import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { getServerSessionFromHeaders } from "@/lib/auth";
 
 export async function GET(req: Request) {
   const routes = await prisma.speedrunRoute.findMany({
-    include: {
-      ratings: true
-    },
-    orderBy: { createdAt: "desc" }
+    include: { user: true, ratings: true },
   });
-  return NextResponse.json(routes);
+  return new Response(JSON.stringify(routes), { status: 200 });
 }
 
 export async function POST(req: Request) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const session = await getServerSessionFromHeaders(req.headers);
+  if (!session) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
 
-  const body = await req.json();
-  const { title, description, steps } = body;
+  const { title, description, steps } = await req.json();
 
-  const route = await prisma.speedrunRoute.create({
+  const newRoute = await prisma.speedrunRoute.create({
     data: {
       title,
       description,
       steps,
-      createdBy: session.user.id
-    }
+      createdBy: session.user.id,
+    },
+    include: { user: true },
   });
 
-  return NextResponse.json(route);
+  return new Response(JSON.stringify(newRoute), { status: 200 });
 }

@@ -1,119 +1,81 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
 
-export default function EditSpeedrunRoute() {
+export default function EditRoutePage() {
   const { id } = useParams();
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [routeData, setRouteData] = useState<any>(null);
-
+  const { data: session, status } = useSession();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [steps, setSteps] = useState<string[]>([]);
+  const [steps, setSteps] = useState("");
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      const res = await fetch(`/api/speedrun/routes/${id}`, { cache: "no-store" });
-      const data = await res.json();
-      setRouteData(data);
-      setTitle(data.title);
-      setDescription(data.description);
-      setSteps(Array.isArray(data.steps) ? data.steps : []);
-      setLoading(false);
-    };
-    load();
+    fetch(`/api/speedrun/routes/${id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setTitle(data.title);
+        setDescription(data.description);
+        setSteps(data.steps.join("\n"));
+      });
   }, [id]);
 
-  const updateStep = (i: number, val: string) => {
-    setSteps((prev) => {
-      const copy = [...prev];
-      copy[i] = val;
-      return copy;
-    });
-  };
+  if (status === "loading") return <p>Chargement...</p>;
+  if (!session) {
+    router.push("/login");
+    return null;
+  }
 
-  const addStep = () => setSteps((prev) => [...prev, ""]);
-  const removeStep = (i: number) => setSteps((prev) => prev.filter((_, idx) => idx !== i));
-
-  const save = async () => {
-    const res = await fetch(`/api/speedrun/routes/${id}`, {
+  const handleUpdate = async () => {
+    await fetch(`/api/speedrun/routes/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, description, steps }),
+      body: JSON.stringify({
+        title,
+        description,
+        steps: steps.split("\n"),
+      }),
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error || "Erreur lors de la mise à jour");
-      return;
-    }
     router.push(`/speedrun/${id}`);
   };
 
-  const cancel = () => router.push(`/speedrun/${id}`);
-
-  if (loading) return <div className="p-6">Chargement…</div>;
-  if (!routeData) return <div className="p-6">Route introuvable.</div>;
+  const handleDelete = async () => {
+    await fetch(`/api/speedrun/routes/${id}`, { method: "DELETE" });
+    router.push("/speedrun");
+  };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-4">
-      <h1 className="text-2xl font-bold">Modifier la route</h1>
-
-      <label className="block">
-        <span className="text-sm font-semibold">Titre</span>
-        <input
-          className="border p-2 w-full"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-        />
-      </label>
-
-      <label className="block">
-        <span className="text-sm font-semibold">Description</span>
-        <textarea
-          className="border p-2 w-full"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={4}
-        />
-      </label>
-
-      <div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold">Étapes</span>
-          <button onClick={addStep} className="px-3 py-1 rounded bg-gray-200">
-            + Ajouter une étape
-          </button>
-        </div>
-        <ol className="space-y-2 list-decimal list-inside">
-          {steps.map((s, i) => (
-            <li key={i} className="flex items-start gap-2">
-              <textarea
-                className="border p-2 w-full"
-                value={s}
-                onChange={(e) => updateStep(i, e.target.value)}
-                rows={2}
-              />
-              <button
-                onClick={() => removeStep(i)}
-                className="px-3 py-1 rounded bg-red-500 text-white"
-                title="Supprimer cette étape"
-              >
-                Suppr.
-              </button>
-            </li>
-          ))}
-        </ol>
-      </div>
-
-      <div className="flex gap-2">
-        <button onClick={save} className="px-4 py-2 rounded bg-blue-600 text-white">
-          Enregistrer
+    <div className="p-6">
+      <h1 className="text-xl font-bold mb-4">Modifier la route</h1>
+      <input
+        className="border p-2 mb-2 block w-full"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <textarea
+        className="border p-2 mb-2 block w-full"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+      />
+      <textarea
+        className="border p-2 mb-2 block w-full"
+        value={steps}
+        onChange={(e) => setSteps(e.target.value)}
+      />
+      <div className="flex gap-4">
+        <button
+          className="bg-green-500 text-white px-4 py-2"
+          onClick={handleUpdate}
+        >
+          Mettre à jour
         </button>
-        <button onClick={cancel} className="px-4 py-2 rounded bg-gray-200">
-          Annuler
+        <button
+          className="bg-red-500 text-white px-4 py-2"
+          onClick={handleDelete}
+        >
+          Supprimer
         </button>
       </div>
     </div>
