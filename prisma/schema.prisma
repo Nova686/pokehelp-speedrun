@@ -13,3 +13,35 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  routes    SpeedrunRoute[]
+  ratings   Rating[]
+}
+
+model SpeedrunRoute {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  steps       String[]
+  createdBy   String
+  user        User     @relation(fields: [createdBy], references: [id])
+  ratings     Rating[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Rating {
+  id        String   @id @default(cuid())
+  userId    String
+  routeId   String
+  value     Int
+  user      User     @relation(fields: [userId], references: [id])
+  route     SpeedrunRoute @relation(fields: [routeId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, routeId])
+}
