@@ -1,40 +1,60 @@
 "use client";
 
-import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
-export default function NewSpeedrunRoute() {
+export default function NewRoutePage() {
+  const { data: session, status } = useSession();
   const router = useRouter();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [steps, setSteps] = useState<string[]>([""]);
+  const [steps, setSteps] = useState("");
 
-  const addStep = () => setSteps([...steps, ""]);
-  const updateStep = (i: number, val: string) => {
-    const copy = [...steps];
-    copy[i] = val;
-    setSteps(copy);
-  };
+  if (status === "loading") return <p>Chargement...</p>;
+  if (!session) {
+    router.push("/login");
+    return null;
+  }
 
   const handleSubmit = async () => {
-    await fetch("/api/speedrun/routes", {
+    const res = await fetch("/api/speedrun/routes", {
       method: "POST",
-      body: JSON.stringify({ title, description, steps }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title,
+        description,
+        steps: steps.split("\n"),
+      }),
     });
-    router.push("/speedrun");
+
+    if (res.ok) router.push("/speedrun");
   };
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold">Nouvelle route</h1>
-      <input placeholder="Titre" value={title} onChange={(e) => setTitle(e.target.value)} className="border p-2 block w-full mb-2" />
-      <textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} className="border p-2 block w-full mb-2" />
-      <h2 className="font-semibold mb-2">Étapes</h2>
-      {steps.map((s, i) => (
-        <input key={i} value={s} onChange={(e) => updateStep(i, e.target.value)} className="border p-1 block w-full mb-1" />
-      ))}
-      <button onClick={addStep} className="bg-gray-300 px-3 py-1 rounded mb-4">+ Ajouter étape</button>
-      <button onClick={handleSubmit} className="bg-blue-500 text-white px-4 py-2 rounded">Créer</button>
+      <h1 className="text-xl font-bold mb-4">Créer une nouvelle route</h1>
+      <input
+        className="border p-2 mb-2 block w-full"
+        placeholder="Titre"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <textarea
+        className="border p-2 mb-2 block w-full"
+        placeholder="Description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+      />
+      <textarea
+        className="border p-2 mb-2 block w-full"
+        placeholder="Étapes (une par ligne)"
+        value={steps}
+        onChange={(e) => setSteps(e.target.value)}
+      />
+      <button className="bg-green-500 text-white px-4 py-2" onClick={handleSubmit}>
+        Créer
+      </button>
     </div>
   );
 }
