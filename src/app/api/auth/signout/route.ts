@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 export async function POST() {
   const res = NextResponse.json({ ok: true });
-  res.headers.append("Set-Cookie", "uid=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0");
+  res.cookies.set("uid", "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
   return res;
 }

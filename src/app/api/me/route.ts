@@ -1,20 +1,27 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
-function getCookieValue(cookieHeader: string | null, key: string): string | null {
-  if (!cookieHeader) return null;
-  const parts = cookieHeader.split(";").map(s => s.trim());
-  for (const p of parts) {
-    const [k, ...rest] = p.split("=");
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+function readCookie(headers: Headers, key: string): string | null {
+  const all = headers.get("cookie");
+  if (!all) return null;
+  for (const part of all.split(";")) {
+    const [k, ...rest] = part.trim().split("=");
     if (k === key) return decodeURIComponent(rest.join("="));
   }
   return null;
 }
 
 export async function GET(req: Request) {
-  const cookieHeader = req.headers.get("cookie");
-  const id = getCookieValue(cookieHeader, "uid");
-  if (!id) return NextResponse.json({ user: null });
-  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, name: true, email: true } });
-  return NextResponse.json({ user: user ?? null });
+  const uid = readCookie(req.headers, "uid") || req.headers.get("x-user-id");
+  if (!uid) return NextResponse.json({ user: null });
+
+  const user = await prisma.user.findUnique({ where: { id: uid } });
+  if (!user) return NextResponse.json({ user: null });
+
+  return NextResponse.json({
+    user: { id: user.id, email: user.email, name: user.name ?? null },
+  });
 }
