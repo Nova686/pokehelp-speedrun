@@ -1,14 +1,20 @@
-import { getServerSessionFromHeaders } from "@/lib/auth";
+import { NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+
+function getCookieValue(cookieHeader: string | null, key: string): string | null {
+  if (!cookieHeader) return null;
+  const parts = cookieHeader.split(";").map(s => s.trim());
+  for (const p of parts) {
+    const [k, ...rest] = p.split("=");
+    if (k === key) return decodeURIComponent(rest.join("="));
+  }
+  return null;
+}
 
 export async function GET(req: Request) {
-  const session = await getServerSessionFromHeaders(req.headers).catch(() => null);
-  if (!session?.user?.id) return new Response(JSON.stringify({ loggedIn: false, user: null }), { status: 200 });
-
-  return new Response(
-    JSON.stringify({
-      loggedIn: true,
-      user: { id: session.user.id, name: session.user.name ?? null, email: session.user.email ?? null },
-    }),
-    { status: 200 }
-  );
+  const cookieHeader = req.headers.get("cookie");
+  const id = getCookieValue(cookieHeader, "uid");
+  if (!id) return NextResponse.json({ user: null });
+  const user = await prisma.user.findUnique({ where: { id }, select: { id: true, name: true, email: true } });
+  return NextResponse.json({ user: user ?? null });
 }

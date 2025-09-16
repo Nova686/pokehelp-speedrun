@@ -1,4 +1,9 @@
-import { AUTH_GET, AUTH_POST } from "@/lib/auth";
+import { NextResponse } from "next/server";
 
-export const GET = AUTH_GET;
-export const POST = AUTH_POST;
+export async function GET() {
+  return NextResponse.json({ error: "Not found" }, { status: 404 });
+}
+
+export async function POST() {
+  return NextResponse.json({ error: "Not found" }, { status: 404 });
+}

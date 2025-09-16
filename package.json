@@ -3,24 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "test": "jest --watch",
-    "test:ci": "jest --ci"
+    "predev": "prisma db push",
+    "dev": "next dev -H 0.0.0.0 -p 3000",
+    "build": "prisma generate && next build",
+    "prestart": "prisma db push",
+    "start": "next start -H 0.0.0.0 -p 3000",
+    "seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@auth/core": "^0.34.2",
     "@better-auth/cli": "^1.3.7",
     "@prisma/client": "^6.13.0",
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.2",
     "better-auth": "^1.3.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.539.0",
     "mysql": "^2.18.1",
     "next": "15.4.6",
-    "next-auth": "^4.24.11",
     "prisma": "^6.14.0",
     "prom-client": "^15.1.3",
     "react": "19.1.0",
@@ -45,5 +46,8 @@
     "ts-jest": "^29.4.1",
     "tw-animate-css": "^1.3.6",
     "typescript": "^5"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }

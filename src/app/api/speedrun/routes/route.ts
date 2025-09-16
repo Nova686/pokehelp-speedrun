@@ -1,28 +1,54 @@
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getServerSessionFromHeaders } from "@/lib/auth";
 
-export async function GET(req: Request) {
+type StepV2 = { title: string; notes?: string; subs: string[] };
+
+function sanitizeSteps(input: unknown): StepV2[] {
+  if (!Array.isArray(input)) return [];
+  if (input.every(s => typeof s === "string")) {
+    return (input as string[]).map((t) => ({ title: String(t).trim(), subs: [] }));
+  }
+  return (input as any[]).map((raw) => {
+    const title = typeof raw?.title === "string" ? raw.title.trim() : "";
+    const notes = typeof raw?.notes === "string" ? raw.notes.trim() : undefined;
+    const subs = Array.isArray(raw?.subs)
+      ? raw.subs.map((x: unknown) => String(x ?? "").trim()).filter(Boolean)
+      : [];
+    return { title, notes, subs };
+  }).filter(s => s.title);
+}
+
+export async function GET() {
   const routes = await prisma.speedrunRoute.findMany({
-    include: { user: true, ratings: true },
+    orderBy: { createdAt: "desc" },
+    include: { ratings: true, user: { select: { id: true, name: true } } }
   });
-  return new Response(JSON.stringify(routes), { status: 200 });
+  return NextResponse.json(routes);
 }
 
 export async function POST(req: Request) {
-  const session = await getServerSessionFromHeaders(req.headers);
-  if (!session) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+  let body: any;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "INVALID_JSON" }, { status: 400 }); }
 
-  const { title, description, steps } = await req.json();
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  const description = typeof body.description === "string" ? body.description.trim() : "";
+  const steps = sanitizeSteps(body.steps);
 
-  const newRoute = await prisma.speedrunRoute.create({
+  if (!title || !description || steps.length === 0) {
+    return NextResponse.json({ error: "TITLE_DESCRIPTION_STEPS_REQUIRED" }, { status: 400 });
+  }
+
+  const cookie = req.headers.get("cookie") ?? "";
+  const uid = cookie.split(";").map(s => s.trim()).find(s => s.startsWith("uid="))?.split("=")[1] ?? undefined;
+
+  const created = await prisma.speedrunRoute.create({
     data: {
       title,
       description,
       steps,
-      createdBy: session.user.id,
-    },
-    include: { user: true },
+      createdBy: uid ?? "anonymous"
+    }
   });
 
-  return new Response(JSON.stringify(newRoute), { status: 200 });
+  return NextResponse.json(created, { status: 201 });
 }
