@@ -12,7 +12,7 @@ export default function CalculatorsHome() {
             <h2 className="text-lg font-semibold text-white">Calculateur d’IV</h2>
             <p className="mt-1 text-sm text-gray-300">Déduire les IV possibles.</p>
           </Link>
-          <Link href="/calculators/damage" className="rounded-xl border border-white/10 bg-[#121212] p-5 hover:border-white/20">
+          <Link href="/calculators/damages" className="rounded-xl border border-white/10 bg-[#121212] p-5 hover:border-white/20">
             <h2 className="text-lg font-semibold text-white">Calculateur de dégâts</h2>
             <p className="mt-1 text-sm text-gray-300">Plage de dégâts et % PV.</p>
           </Link>
