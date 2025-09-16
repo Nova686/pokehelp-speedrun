@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 type StepV2 = { title: string; notes?: string; subs: string[] };
 
 function sanitizeSteps(input: unknown): StepV2[] {
@@ -18,11 +21,21 @@ function sanitizeSteps(input: unknown): StepV2[] {
   }).filter(s => s.title);
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const game = searchParams.get("game")?.trim() || "";
+
+  const where = game ? { game } : {};
+
   const routes = await prisma.speedrunRoute.findMany({
+    where,
     orderBy: { createdAt: "desc" },
-    include: { ratings: true, user: { select: { id: true, name: true } } }
+    include: {
+      user: { select: { id: true, name: true } },
+      ratings: { select: { value: true } },
+    },
   });
+
   return NextResponse.json(routes);
 }
 
