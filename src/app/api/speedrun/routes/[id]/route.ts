@@ -1,43 +1,71 @@
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { getServerSessionFromHeaders } from "@/lib/auth";
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
-  const route = await prisma.speedrunRoute.findUnique({
-    where: { id: params.id },
-    include: { user: true, ratings: true },
-  });
-  if (!route) return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
-  return new Response(JSON.stringify(route), { status: 200 });
+type StepV2 = { title: string; notes?: string; subs: string[] };
+
+function sanitizeSteps(input: unknown): StepV2[] {
+  if (!Array.isArray(input)) return [];
+  if ((input as any[]).every((s) => typeof s === "string")) {
+    return (input as string[]).map((t) => ({ title: String(t).trim(), subs: [] }));
+  }
+  return (input as any[])
+    .map((raw) => {
+      const title = typeof raw?.title === "string" ? raw.title.trim() : "";
+      const notes = typeof raw?.notes === "string" ? raw.notes.trim() : undefined;
+      const subs = Array.isArray(raw?.subs)
+        ? raw.subs.map((x: unknown) => String(x ?? "").trim()).filter(Boolean)
+        : [];
+      return { title, notes, subs };
+    })
+    .filter((s) => s.title);
 }
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSessionFromHeaders(req.headers);
-  if (!session) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
+export async function GET(_req: Request, context: any) {
+  const id = context?.params?.id as string;
+  const route = await prisma.speedrunRoute.findUnique({
+    where: { id },
+    include: { ratings: true, user: { select: { id: true, name: true } } },
+  });
+  if (!route) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  return NextResponse.json(route);
+}
 
-  const existing = await prisma.speedrunRoute.findUnique({ where: { id: params.id } });
-  if (!existing) return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
-  if (existing.createdBy !== session.user.id)
-    return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
+export async function PATCH(req: Request, context: any) {
+  const id = context?.params?.id as string;
+  const existing = await prisma.speedrunRoute.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const { title, description, steps } = await req.json();
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "INVALID_JSON" }, { status: 400 });
+  }
+
+  const title =
+    typeof body.title === "string" ? body.title.trim() : existing.title;
+  const description =
+    typeof body.description === "string"
+      ? body.description.trim()
+      : existing.description;
+
+  let steps: StepV2[] = Array.isArray(existing.steps)
+    ? sanitizeSteps(existing.steps)
+    : [];
+  if (Array.isArray(body.steps)) steps = sanitizeSteps(body.steps);
 
   const updated = await prisma.speedrunRoute.update({
-    where: { id: params.id },
+    where: { id },
     data: { title, description, steps },
   });
 
-  return new Response(JSON.stringify(updated), { status: 200 });
+  return NextResponse.json(updated);
 }
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSessionFromHeaders(req.headers);
-  if (!session) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
-
-  const existing = await prisma.speedrunRoute.findUnique({ where: { id: params.id } });
-  if (!existing) return new Response(JSON.stringify({ error: "Not found" }), { status: 404 });
-  if (existing.createdBy !== session.user.id)
-    return new Response(JSON.stringify({ error: "Forbidden" }), { status: 403 });
-
-  await prisma.speedrunRoute.delete({ where: { id: params.id } });
-  return new Response(JSON.stringify({ message: "Deleted" }), { status: 200 });
+export async function DELETE(_req: Request, context: any) {
+  const id = context?.params?.id as string;
+  const existing = await prisma.speedrunRoute.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  await prisma.speedrunRoute.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
 }

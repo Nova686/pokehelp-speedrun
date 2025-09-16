@@ -1,30 +1,24 @@
-import { betterAuth } from "better-auth";
-import { nextCookies, toNextJsHandler } from "better-auth/next-js";
-import { prismaAdapter } from "better-auth/adapters/prisma";
-import { PrismaClient } from "@prisma/client";
+import prisma from "./prisma";
 
-const prisma = new PrismaClient();
+export type Session = { user: { id: string; name?: string | null; email?: string | null } } | null;
 
-export const auth = betterAuth({
-  secret: process.env.BETTER_AUTH_SECRET,
-  database: prismaAdapter(prisma, {
-    provider: "mysql",
-  }),
-  socialProviders: {
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    },
-    discord: {
-      clientId: process.env.DISCORD_CLIENT_ID!,
-      clientSecret: process.env.DISCORD_CLIENT_SECRET!,
-    },
-  },
-  plugins: [nextCookies()],
-});
+function getCookieValue(cookieHeader: string | null, key: string): string | null {
+  if (!cookieHeader) return null;
+  const parts = cookieHeader.split(";").map(s => s.trim());
+  for (const p of parts) {
+    const [k, ...rest] = p.split("=");
+    if (k === key) return decodeURIComponent(rest.join("="));
+  }
+  return null;
+}
 
-export const { GET: AUTH_GET, POST: AUTH_POST } = toNextJsHandler(auth.handler);
-
-export async function getServerSessionFromHeaders(headers: Headers) {
-  return auth.api.getSession({ headers });
+export async function getServerSessionFromHeaders(headers: Headers): Promise<Session> {
+  const cookieHeader = headers.get("cookie");
+  const cookieUid = getCookieValue(cookieHeader, "uid");
+  const headerUid = headers.get("x-user-id");
+  const id = cookieUid || headerUid || null;
+  if (!id) return null;
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) return null;
+  return { user: { id: user.id, name: user.name ?? null, email: user.email ?? null } };
 }
