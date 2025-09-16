@@ -6,9 +6,10 @@ type Rating = { id: string; value: number; userId: string; createdAt: string };
 type Author = { id: string; name: string | null };
 type SpeedrunRoute = {
   id: string;
+  game?: string | null;
   title: string;
   description: string;
-  steps: string[];
+  steps: any[];
   ratings: Rating[];
   createdBy: string;
   createdAt: string;
@@ -16,7 +17,7 @@ type SpeedrunRoute = {
   user?: Author | null;
 };
 
-export default function SpeedrunPage() {
+export default function SpeedrunRoutesPage() {
   const [routes, setRoutes] = useState<SpeedrunRoute[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
@@ -26,29 +27,30 @@ export default function SpeedrunPage() {
   const [selectedRouteId, setSelectedRouteId] = useState<string>("");
 
   useEffect(() => {
-    async function load() {
+    let alive = true;
+    (async () => {
       try {
         setLoading(true);
         const res = await fetch("/api/speedrun/routes", { cache: "no-store" });
         if (!res.ok) throw new Error(String(res.status));
         const json = (await res.json()) as SpeedrunRoute[];
-        setRoutes(json);
+        if (alive) setRoutes(json);
       } catch (e: any) {
-        setErr(e?.message ?? "Erreur");
+        if (alive) setErr(e?.message ?? "Erreur");
       } finally {
-        setLoading(false);
+        if (alive) setLoading(false);
       }
-    }
-    load();
+    })();
+    return () => { alive = false; };
   }, []);
 
   const games = useMemo(() => {
     const set = new Set<string>();
     routes.forEach(r => {
-      const first = r.title.split(" ")[0] || "Autre";
-      set.add(first);
+      const g = (r.game ?? "").trim();
+      if (g) set.add(g);
     });
-    return Array.from(set);
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "fr"));
   }, [routes]);
 
   const categories = useMemo(() => {
@@ -62,7 +64,7 @@ export default function SpeedrunPage() {
 
   const filtered = useMemo(() => {
     return routes.filter(r => {
-      const game = r.title.split(" ")[0] || "Autre";
+      const game = (r.game ?? "Autre");
       const cat = (r.title.match(/Any%|No-?Glitch|Glitchless|100%/i)?.[0] ?? "Autre").toLowerCase();
       const okGame = selectedGame ? game === selectedGame : true;
       const okCat = selectedCategory ? cat === selectedCategory.toLowerCase() : true;
@@ -83,18 +85,9 @@ export default function SpeedrunPage() {
   }
 
   return (
-    <main className="py-10">
-      <div className="mx-auto max-w-2xl text-center">
-        <button
-          disabled
-          title="Connexion à LiveSplit non disponible"
-          className="mx-auto mb-6 rounded border border-white/20 px-4 py-2 text-sm text-gray-200 opacity-60"
-        >
-          Connexion à livesplit
-        </button>
-        <div className="mx-auto mb-6 h-px w-80 bg-white/10" />
-        <h1 className="mb-5 text-lg font-medium text-gray-200">Configuration manuelle</h1>
-
+    <main className="py-8">
+      <section className="mx-auto mb-8 max-w-5xl rounded-xl border border-white/10 bg-[#121212] p-6">
+        <h1 className="mb-5 text-lg font-medium text-gray-200">Sélection</h1>
         <div className="mx-auto grid max-w-md gap-3">
           <div className="text-left">
             <label className="mb-1 block text-sm text-gray-300">Jeu</label>
@@ -103,7 +96,7 @@ export default function SpeedrunPage() {
               value={selectedGame}
               onChange={e => setSelectedGame(e.target.value)}
             >
-              <option value="">Choisir un jeu</option>
+              <option value="">Tous les jeux</option>
               {games.map(g => (
                 <option key={g} value={g}>{g}</option>
               ))}
@@ -117,55 +110,34 @@ export default function SpeedrunPage() {
               value={selectedCategory}
               onChange={e => setSelectedCategory(e.target.value)}
             >
-              <option value="">Choisir une catégorie</option>
+              <option value="">Toutes</option>
               {categories.map(c => (
-                <option key={c} value={c.toLowerCase()}>{c}</option>
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
-
-          <div className="text-left">
-            <label className="mb-1 block text-sm text-gray-300">Route</label>
-            <select
-              className="w-full rounded border border-white/20 bg-[#121212] px-3 py-2 text-sm text-gray-100"
-              value={selectedRouteId}
-              onChange={e => setSelectedRouteId(e.target.value)}
-            >
-              <option value="">Choisir une route</option>
-              {filtered.map(r => (
-                <option key={r.id} value={r.id}>{r.title}</option>
-              ))}
-            </select>
-          </div>
-
-          <Link
-            href={selectedRouteId ? `/speedrun/${selectedRouteId}` : "#"}
-            aria-disabled={!selectedRouteId}
-            className={`mx-auto mt-2 inline-block rounded bg-white/10 px-4 py-2 text-sm ${selectedRouteId ? "hover:bg-white/20" : "opacity-40 cursor-not-allowed"}`}
-          >
-            Commencer
-          </Link>
         </div>
-      </div>
+      </section>
 
-      <section className="mx-auto mt-12 max-w-6xl">
+      <section className="mx-auto max-w-5xl">
         {loading ? (
           <p className="text-gray-300">Chargement…</p>
         ) : err ? (
           <p className="text-red-400">Erreur: {err}</p>
         ) : (
           <ul className="grid gap-4 md:grid-cols-2">
-            {routes.map(route => (
+            {filtered.map(route => (
               <li key={route.id} className="rounded-xl border border-white/10 bg-[#121212] p-5 hover:border-white/20">
-                <div className="flex items-start justify-between gap-4">
-                  <h2 className="text-base font-semibold text-white">
-                    <Link href={`/speedrun/${route.id}`} className="hover:underline">{route.title}</Link>
-                  </h2>
-                  <div className="shrink-0 text-sm text-gray-300">{avg(route.ratings) ? `${avg(route.ratings)}★` : "—"}</div>
+                <div className="mb-2 flex items-center justify-between gap-4">
+                  <span className="rounded bg-white/10 px-2 py-0.5 text-xs text-gray-200">{route.game ?? "—"}</span>
+                  <span className="text-sm text-gray-300">{avg(route.ratings) ? `${avg(route.ratings)}★` : "—"}</span>
                 </div>
+                <h2 className="text-base font-semibold text-white">
+                  <Link href={`/speedrun/${route.id}`} className="hover:underline">{route.title}</Link>
+                </h2>
                 <p className="mt-2 line-clamp-3 text-sm text-gray-300">{route.description}</p>
                 <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
-                  <span>{route.steps.length} étapes</span>
+                  <span>{Array.isArray(route.steps) ? route.steps.length : 0} étapes</span>
                   <span>{new Date(route.createdAt).toLocaleDateString()}</span>
                 </div>
               </li>
